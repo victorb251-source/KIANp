@@ -1,4 +1,6 @@
 
+
+
 import React, { useState } from 'react';
 import { BoardStyle, GeneratedQuestion, StudyGoal } from '../types';
 import { BOARD_STYLES } from '../constants';
@@ -17,6 +19,7 @@ import {
     MagnifyingGlassIcon,
     SelectionIcon,
     ListBulletIcon,
+    ChatBubbleLeftRightIcon
 } from './Icon';
 
 interface ToolbarProps {
@@ -57,6 +60,10 @@ interface ToolbarProps {
     isOutlineOpen: boolean;
     onToggleOutline: () => void;
     hasOutline: boolean;
+
+    // Chat
+    onToggleChat: () => void;
+    isChatOpen: boolean;
 }
 
 const formatTime = (totalSeconds: number) => {
@@ -76,7 +83,8 @@ const Toolbar: React.FC<ToolbarProps> = ({
     onOpenGoalModal, onOpenMockExamSetup, sessionTimer, onPlayPauseTimer, studyGoal,
     onSearch, searchResults, currentSearchIndex, onNextResult, onPrevResult, isSearching, onClearSearch,
     isSelectionMode, onToggleSelectionMode,
-    isOutlineOpen, onToggleOutline, hasOutline
+    isOutlineOpen, onToggleOutline, hasOutline,
+    onToggleChat, isChatOpen
 }) => {
     const [isSearchOpen, setIsSearchOpen] = useState(false);
     const [searchText, setSearchText] = useState('');
@@ -141,6 +149,13 @@ const Toolbar: React.FC<ToolbarProps> = ({
                                 className={`p-2 rounded-md transition-colors ${isSelectionMode ? 'bg-accent-primary text-white' : 'bg-bg-tertiary hover:bg-bg-interactive'}`}
                             >
                                 <SelectionIcon className="w-5 h-5" />
+                            </button>
+                            <button 
+                                onClick={onToggleChat} 
+                                title="Chat com IA" 
+                                className={`p-2 rounded-md transition-colors ${isChatOpen ? 'bg-accent-primary text-white' : 'bg-bg-tertiary hover:bg-bg-interactive'}`}
+                            >
+                                <ChatBubbleLeftRightIcon className="w-5 h-5" />
                             </button>
                         </>
                     ) : (

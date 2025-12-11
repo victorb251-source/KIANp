@@ -1,5 +1,7 @@
 
 
+
+
 import { useState, useEffect, useCallback } from 'react';
 import { GamificationState, Toast, ShopItem, Badge, GeneratedQuestion, BadgeRarity } from '../types';
 import { GAMIFICATION_STORAGE_KEY, REWARDS, LEVELS, BADGES, DEFAULT_THEME_ID } from '../constants';
@@ -147,6 +149,12 @@ const useGamification = () => {
             return finalState;
         });
     }, [addToast]);
+
+    // Import state from external source (e.g., Cloud Sync)
+    const importState = useCallback((newState: GamificationState) => {
+        setState(newState);
+        localStorage.setItem(GAMIFICATION_STORAGE_KEY, JSON.stringify(newState));
+    }, []);
 
     // Daily Logic
     useEffect(() => {
@@ -338,7 +346,19 @@ const useGamification = () => {
         }
     }, [state.unlockedThemes, updateState, addToast]);
     
-    return { state, toasts, logPageRead, logAnswer, logPageCompleted, purchaseTheme, setActiveTheme, addToast, logQuestionSessionCompleted, logGoalCompleted };
+    return { 
+        state, 
+        toasts, 
+        logPageRead, 
+        logAnswer, 
+        logPageCompleted, 
+        purchaseTheme, 
+        setActiveTheme, 
+        addToast, 
+        logQuestionSessionCompleted, 
+        logGoalCompleted,
+        importState 
+    };
 };
 
 const isCorrectAnswer = (userAnswer: string, correctAnswer: string): boolean => {

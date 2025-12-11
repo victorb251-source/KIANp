@@ -1,8 +1,9 @@
 
+
 declare const gapi: any;
 declare const google: any;
 
-const SCOPES = 'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/drive.readonly';
+const SCOPES = 'https://www.googleapis.com/auth/drive.file';
 const DISCOVERY_DOCS = ['https://www.googleapis.com/discovery/v1/apis/drive/v3/rest'];
 const APP_DATA_FILE_NAME = 'kian_app_data.json';
 
@@ -10,18 +11,43 @@ let tokenClient: any;
 let gapiInited = false;
 let gisInited = false;
 
-export const initGoogleDrive = async (clientId: string, onInitCallback: () => void) => {
+// Dynamically load Google scripts
+const loadScript = (src: string, id: string): Promise<void> => {
+    return new Promise((resolve, reject) => {
+        if (document.getElementById(id)) {
+            resolve();
+            return;
+        }
+        const script = document.createElement('script');
+        script.src = src;
+        script.id = id;
+        script.async = true;
+        script.defer = true;
+        script.onload = () => resolve();
+        script.onerror = () => reject(new Error(`Failed to load script ${src}`));
+        document.body.appendChild(script);
+    });
+};
+
+export const initGoogleDrive = async (clientId: string) => {
+    // Load scripts first if not present
+    await loadScript('https://apis.google.com/js/api.js', 'gapi-script');
+    await loadScript('https://accounts.google.com/gsi/client', 'gis-script');
+
     return new Promise<void>((resolve, reject) => {
         const checkGapi = () => {
              if ((window as any).gapi) {
                  gapi.load('client', async () => {
-                    await gapi.client.init({
-                        clientId: clientId,
-                        discoveryDocs: DISCOVERY_DOCS,
-                    });
-                    gapiInited = true;
-                    if (gisInited) onInitCallback();
-                    resolve();
+                    try {
+                        await gapi.client.init({
+                            clientId: clientId,
+                            discoveryDocs: DISCOVERY_DOCS,
+                        });
+                        gapiInited = true;
+                        if (gisInited) resolve();
+                    } catch (e) {
+                        reject(e);
+                    }
                  });
              } else {
                  setTimeout(checkGapi, 100);
@@ -31,13 +57,17 @@ export const initGoogleDrive = async (clientId: string, onInitCallback: () => vo
 
         const checkGis = () => {
             if ((window as any).google) {
-                tokenClient = google.accounts.oauth2.initTokenClient({
-                    client_id: clientId,
-                    scope: SCOPES,
-                    callback: '', // defined at request time
-                });
-                gisInited = true;
-                if (gapiInited) onInitCallback();
+                try {
+                    tokenClient = google.accounts.oauth2.initTokenClient({
+                        client_id: clientId,
+                        scope: SCOPES,
+                        callback: '', // defined at request time
+                    });
+                    gisInited = true;
+                    if (gapiInited) resolve();
+                } catch (e) {
+                    reject(e);
+                }
             } else {
                 setTimeout(checkGis, 100);
             }
@@ -54,14 +84,14 @@ export const signIn = async (): Promise<any> => {
             if (resp.error) {
                 reject(resp);
             }
-            // Fetch user info using GAPI
             try {
-                // We use drive about to get user info if OIDC is not fully implemented in this simple flow
+                // Get user info
                 const about = await gapi.client.drive.about.get({ fields: "user" });
                 resolve(about.result.user);
             } catch (e) {
-                console.warn("Could not fetch detailed user info", e);
-                resolve({ displayName: "Usuário", emailAddress: "Conta Google", photoLink: "" });
+                console.warn("Could not fetch user info", e);
+                // Fallback user if API fails but token works
+                resolve({ displayName: "Usuário Conectado", emailAddress: "", photoLink: "" });
             }
         };
         
@@ -81,41 +111,7 @@ export const signOut = () => {
     }
 };
 
-export const listPdfs = async (): Promise<any[]> => {
-    try {
-        const response = await gapi.client.drive.files.list({
-            'pageSize': 20,
-            'fields': "nextPageToken, files(id, name, mimeType, thumbnailLink)",
-            'q': "mimeType = 'application/pdf' and trashed = false"
-        });
-        return response.result.files;
-    } catch (err) {
-        console.error("Error listing files", err);
-        throw err;
-    }
-};
-
-export const getFileContent = async (fileId: string): Promise<ArrayBuffer> => {
-    try {
-        const response = await gapi.client.drive.files.get({
-            fileId: fileId,
-            alt: 'media'
-        });
-        // GAPI returns body in response.body, but for binary we might need a workaround or specific fetch
-        // GAPI client is text based usually. For binary large files, better use fetch with the token.
-        const token = gapi.client.getToken().access_token;
-        const res = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
-            headers: { Authorization: `Bearer ${token}` }
-        });
-        return await res.arrayBuffer();
-    } catch (err) {
-        console.error("Error getting file content", err);
-        throw err;
-    }
-};
-
-// --- APP DATA SYNC ---
-
+// Find the data file in Drive
 export const findAppDataFile = async (): Promise<string | null> => {
     try {
         const response = await gapi.client.drive.files.list({
@@ -134,6 +130,7 @@ export const findAppDataFile = async (): Promise<string | null> => {
     }
 };
 
+// Create the data file
 export const createAppDataFile = async (data: any): Promise<string> => {
     const fileContent = JSON.stringify(data);
     const metadata = {
@@ -156,6 +153,7 @@ export const createAppDataFile = async (data: any): Promise<string> => {
     return result.id;
 };
 
+// Update the data file
 export const updateAppDataFile = async (fileId: string, data: any) => {
      const fileContent = JSON.stringify(data);
      const token = gapi.client.getToken().access_token;
@@ -170,6 +168,7 @@ export const updateAppDataFile = async (fileId: string, data: any) => {
     });
 };
 
+// Load data from the file
 export const loadAppData = async (fileId: string): Promise<any> => {
     try {
         const token = gapi.client.getToken().access_token;
@@ -179,6 +178,33 @@ export const loadAppData = async (fileId: string): Promise<any> => {
         return await res.json();
     } catch (e) {
         console.error("Error loading app data", e);
+        throw e;
+    }
+};
+
+// List PDF files
+export const listPdfs = async (): Promise<any[]> => {
+    try {
+        // Ensure we have a token or valid session
+        const token = gapi.client.getToken();
+        if (!token) {
+            // Attempt to use tokenClient to get a token if silent auth is possible, 
+            // but usually this function is called after user is signed in.
+            // Returning empty list or throwing error is appropriate.
+            console.warn("No access token available for listing PDFs");
+            return [];
+        }
+
+        const response = await gapi.client.drive.files.list({
+            q: "mimeType='application/pdf' and trashed = false",
+            fields: 'files(id, name, mimeType, thumbnailLink)',
+            spaces: 'drive',
+            pageSize: 50,
+            orderBy: 'modifiedTime desc'
+        });
+        return response.result.files || [];
+    } catch (e) {
+        console.error("Error listing PDFs", e);
         throw e;
     }
 };

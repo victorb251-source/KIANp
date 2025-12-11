@@ -1,4 +1,4 @@
-import { GoogleGenAI, Type, GenerateContentResponse } from "@google/genai";
+import { GoogleGenAI, Type, GenerateContentResponse, Chat } from "@google/genai";
 import { BoardStyle, GeneratedQuestion } from '../types';
 import { MASTER_PROMPT_TEMPLATE, BOARD_STYLE_INSTRUCTIONS_MAP, FLASHCARD_PROMPT_TEMPLATE, SIMPLE_EXPLANATION_PROMPT_TEMPLATE, STUDY_SUGGESTIONS_PROMPT_TEMPLATE } from '../constants';
 
@@ -216,4 +216,14 @@ export const generateStudySuggestions = async (incorrectQuestions: GeneratedQues
         }
         throw new Error(`Falha ao gerar sugestões. Motivo: ${errorMessage}`);
     }
+};
+
+export const createChatSession = (systemInstruction?: string): Chat => {
+    if (!process.env.API_KEY) {
+        throw new Error("Chave de API não encontrada.");
+    }
+    return ai.chats.create({
+        model: 'gemini-2.5-flash',
+        config: { systemInstruction }
+    });
 };

@@ -131,3 +131,39 @@ export interface Folder {
     name: string;
     files: string[]; // List of PDF identifiers
 }
+
+export interface ReviewLog {
+    date: number;
+    rating: 'wrong' | 'hard' | 'easy';
+    interval: number;
+}
+
+export interface ErrorFlashcard {
+    id: string;
+    question: GeneratedQuestion;
+    sourcePdfName: string;
+    sourcePdfId: string;
+    createdAt: number;
+    nextReview: number; // Timestamp
+    lastReviewDate: number; // Timestamp of last review
+    interval: number; // in days (or fractions of days)
+    easeFactor: number;
+    repetitions: number;
+    history: ReviewLog[];
+    isFlaggedError: boolean; // Determines if this card is currently considered an "Error" that needs addressing
+}
+
+export interface CustomReviewConfig {
+    count: number;
+    order: 'random' | 'newest' | 'oldest';
+    includeHard: boolean; // If true, includes cards marked as 'hard' recently
+    syncWithSRS: boolean; // If true, updates the official schedule. If false, just records history/flag.
+}
+
+export interface SyncData {
+    timestamp: number;
+    gamification: GamificationState;
+    progress: Record<string, ProgressData>;
+    folders: Folder[];
+    flashcards: ErrorFlashcard[];
+}

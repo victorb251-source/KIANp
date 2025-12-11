@@ -1,7 +1,15 @@
 
 
+
+
+
+
+
+
+
+
 import React, { useState, useCallback, useRef, useEffect } from 'react';
-import { BoardStyle, GeneratedQuestion, ShopItem, StudyGoal, ProgressData, Folder } from './types';
+import { BoardStyle, GeneratedQuestion, ShopItem, StudyGoal, ProgressData, Folder, CustomReviewConfig, AuthState, SyncData } from './types';
 import { BOARD_STYLES, CORRECT_ANSWER_SOUND_URL, INCORRECT_ANSWER_SOUND_URL, REWARDS, FOLDERS_STORAGE_KEY } from './constants';
 import { generateQuestions, generateFlashcard, generateSimpleExplanation, generateStudySuggestions } from './services/geminiService';
 import Loader from './components/Loader';
@@ -18,10 +26,14 @@ import {
   FolderIcon,
   TrashIcon,
   ArrowUturnLeftIcon,
-  ChevronRightIcon
+  ChevronRightIcon,
+  RectangleStackIcon,
+  CalendarDaysIcon,
+  FunnelIcon
 } from './components/Icon';
 import { playSound } from './utils/audioPlayer';
 import useGamification from './hooks/useGamification';
+import useErrorFlashcards from './hooks/useErrorFlashcards';
 import StatsModal from './components/StatsModal';
 import ToastNotification from './components/ToastNotification';
 import { isToday, formatRelativeTime } from './utils/dateUtils';
@@ -34,6 +46,13 @@ import GoalCompletionModal from './components/GoalCompletionModal';
 import SessionStatsModal from './components/SessionStatsModal';
 import MockExamSetupModal from './components/MockExamSetupModal';
 import MockExamWindow from './components/MockExamWindow';
+import ChatWindow from './components/ChatWindow';
+import ErrorFlashcardModal from './components/ErrorFlashcardModal';
+import FlashcardCalendarModal from './components/FlashcardCalendarModal';
+import CustomReviewSetupModal from './components/CustomReviewSetupModal';
+import SettingsModal from './components/SettingsModal';
+import { initGoogleDrive, signIn, signOut, findAppDataFile, createAppDataFile, updateAppDataFile, loadAppData } from './services/googleDriveService';
+import { mergeData } from './utils/syncUtils';
 
 declare const pdfjsLib: any;
 
@@ -166,8 +185,12 @@ const WelcomeScreen: React.FC<{
     folders: Folder[],
     onCreateFolder: (name: string) => void,
     onDeleteFolder: (id: string) => void,
-    onMoveFile: (fileId: string, folderId: string | null) => void
-}> = ({ onOpenFile, error, activities, onShowStats, onDeleteFile, folders, onCreateFolder, onDeleteFolder, onMoveFile }) => {
+    onMoveFile: (fileId: string, folderId: string | null) => void,
+    onOpenErrorFlashcards: () => void,
+    onOpenCustomReview: () => void,
+    onOpenFlashcardCalendar: () => void,
+    flashcardStats: { pending: number, errors: number, total: number }
+}> = ({ onOpenFile, error, activities, onShowStats, onDeleteFile, folders, onCreateFolder, onDeleteFolder, onMoveFile, onOpenErrorFlashcards, onOpenCustomReview, onOpenFlashcardCalendar, flashcardStats }) => {
     
     const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
     const [isCreatingFolder, setIsCreatingFolder] = useState(false);
@@ -198,7 +221,7 @@ const WelcomeScreen: React.FC<{
 
     return (
     <div className="flex flex-col h-full p-4 md:p-8 overflow-y-auto">
-        <div className="flex items-center justify-between mb-8 flex-shrink-0">
+        <div className="flex flex-col md:flex-row items-start md:items-center justify-between mb-8 flex-shrink-0 gap-4">
              <div>
                  <h2 className="text-3xl md:text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-accent-gradient-from to-accent-gradient-to">
                     Biblioteca
@@ -207,7 +230,48 @@ const WelcomeScreen: React.FC<{
                     {currentFolder ? `Pasta: ${currentFolder.name}` : 'Seus arquivos e pastas'}
                 </p>
              </div>
-             <div className="flex gap-2">
+             
+             {/* Main Action Buttons */}
+             <div className="flex gap-2 flex-wrap items-center">
+                 
+                 {/* Standard SRS Review */}
+                 <button 
+                    onClick={onOpenErrorFlashcards}
+                    className="relative flex items-center gap-2 px-4 py-2 bg-accent-primary/10 text-accent-primary font-bold rounded-lg border border-accent-primary/30 hover:bg-accent-primary/20 transition-all"
+                    title="Revisões agendadas para hoje"
+                 >
+                     <RectangleStackIcon className="w-5 h-5" />
+                     <span className="hidden sm:inline">Revisão do Dia</span>
+                     {flashcardStats.pending > 0 && (
+                        <span className="absolute -top-2 -right-2 bg-accent-error text-white text-[10px] w-5 h-5 flex items-center justify-center rounded-full font-bold shadow-sm">
+                            {flashcardStats.pending}
+                        </span>
+                     )}
+                 </button>
+
+                 {/* Custom Error Review */}
+                 <button 
+                    onClick={onOpenCustomReview}
+                    className="relative flex items-center gap-2 px-4 py-2 bg-accent-error/10 text-accent-error font-bold rounded-lg border border-accent-error/30 hover:bg-accent-error/20 transition-all"
+                    title="Revisão personalizada apenas de erros"
+                 >
+                     <FunnelIcon className="w-5 h-5" />
+                     <span className="hidden sm:inline">Revisão de Erros</span>
+                     {flashcardStats.errors > 0 && (
+                        <span className="absolute -top-2 -right-2 bg-bg-primary border border-accent-error text-accent-error text-[10px] w-5 h-5 flex items-center justify-center rounded-full font-bold shadow-sm">
+                            {flashcardStats.errors}
+                        </span>
+                     )}
+                 </button>
+
+                 <button 
+                    onClick={onOpenFlashcardCalendar}
+                    className="flex items-center gap-2 px-3 py-2 bg-bg-secondary text-text-primary rounded-lg border border-border-color hover:bg-bg-tertiary transition-all"
+                    title="Calendário de Revisão"
+                 >
+                     <CalendarDaysIcon className="w-5 h-5" />
+                 </button>
+
                  {!currentFolderId && (
                      <button 
                         onClick={() => setIsCreatingFolder(true)}
@@ -551,7 +615,7 @@ const PDFPage = React.memo(({
         onSelectionMove(pageNumber, e.clientX - rect.left, e.clientY - rect.top);
     };
     
-    // Check if this page is the active selection page
+    // Check if this is the active selection page
     const isActiveSelectionPage = selectionRect?.page === pageNumber;
 
     return (
@@ -707,8 +771,19 @@ const App: React.FC = () => {
   // Outline State
   const [outline, setOutline] = useState<any[]>([]);
   const [isOutlineOpen, setIsOutlineOpen] = useState(false);
+  
+  // Chat State
+  const [isChatOpen, setIsChatOpen] = useState(false);
 
   const gamification = useGamification();
+  const errorFlashcards = useErrorFlashcards();
+  const [isErrorFlashcardOpen, setIsErrorFlashcardOpen] = useState(false);
+  const [isFlashcardCalendarOpen, setIsFlashcardCalendarOpen] = useState(false);
+  
+  // Custom Error Review State
+  const [isCustomReviewSetupOpen, setIsCustomReviewSetupOpen] = useState(false);
+  const [customReviewConfig, setCustomReviewConfig] = useState<CustomReviewConfig | null>(null);
+
 
   // State for resizable panels
   const mainContainerRef = useRef<HTMLDivElement>(null);
@@ -743,6 +818,92 @@ const App: React.FC = () => {
   const [isGeneratingMockExam, setIsGeneratingMockExam] = useState(false);
   const [mockExamQuestions, setMockExamQuestions] = useState<GeneratedQuestion[]>([]);
   const [mockExamError, setMockExamError] = useState<string | null>(null);
+
+  // Settings State
+  const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
+  
+  // Auth State
+  const [authState, setAuthState] = useState<AuthState>({ isAuthenticated: false, user: null });
+  const [isSyncing, setIsSyncing] = useState(false);
+
+  // Initialize Auth
+  useEffect(() => {
+    const clientId = localStorage.getItem('kian_google_client_id');
+    if (clientId) {
+      initGoogleDrive(clientId)
+        .then(() => {
+           // Maybe auto-signin? Not for now.
+        })
+        .catch(err => console.error("Drive Init Failed", err));
+    }
+  }, []);
+
+  const handleLogin = async () => {
+      try {
+          const user = await signIn();
+          setAuthState({ isAuthenticated: true, user: { name: user.displayName, email: user.emailAddress, photoUrl: user.photoLink } });
+          gamification.addToast(`Bem-vindo, ${user.displayName}!`, '👋');
+      } catch (e) {
+          console.error("Login failed", e);
+          gamification.addToast("Falha ao conectar com Google Drive", '❌');
+      }
+  };
+
+  const handleLogout = () => {
+      signOut();
+      setAuthState({ isAuthenticated: false, user: null });
+      gamification.addToast("Desconectado", '👋');
+  };
+
+  const handleSync = async () => {
+      if (!authState.isAuthenticated) return;
+      setIsSyncing(true);
+      try {
+          // 1. Load Cloud Data
+          let cloudData: SyncData = { timestamp: 0, gamification: gamification.state, progress: {}, folders: [], flashcards: [] };
+          let fileId = await findAppDataFile();
+          
+          if (fileId) {
+              const content = await loadAppData(fileId);
+              if (content) cloudData = content;
+          }
+
+          // 2. Prepare Local Data
+          const localData: SyncData = {
+              timestamp: Date.now(),
+              gamification: gamification.state,
+              progress: allProgress,
+              folders: folders,
+              flashcards: errorFlashcards.flashcards
+          };
+
+          // 3. Merge
+          const mergedData = mergeData(localData, cloudData);
+
+          // 4. Update Cloud
+          if (fileId) {
+              await updateAppDataFile(fileId, mergedData);
+          } else {
+              fileId = await createAppDataFile(mergedData);
+          }
+
+          // 5. Update Local State
+          gamification.importState(mergedData.gamification);
+          errorFlashcards.importFlashcards(mergedData.flashcards);
+          setAllProgress(mergedData.progress);
+          setFolders(mergedData.folders);
+          saveAllProgress(mergedData.progress);
+          saveFolders(mergedData.folders);
+
+          gamification.addToast("Sincronização concluída com sucesso!", '☁️');
+
+      } catch (e) {
+          console.error("Sync failed", e);
+          gamification.addToast("Erro na sincronização.", '⚠️');
+      } finally {
+          setIsSyncing(false);
+      }
+  };
 
   // Timer logic
   useEffect(() => {
@@ -1062,6 +1223,10 @@ const App: React.FC = () => {
           if (!prevErrors.some(err => err.question_text === question.question_text)) return [...prevErrors, question];
           return prevErrors;
       });
+      // Add to global error flashcards
+      if (pdfIdentifier) {
+          errorFlashcards.addError(question, pdfIdentifier, fileName);
+      }
     }
     setQuestionsByPage(prev => {
         const pageQuestions = [...(prev[questionsCacheKey] || [])];
@@ -1114,7 +1279,13 @@ const App: React.FC = () => {
         const q = [...(prev[questionsCacheKey] || [])]; q[questionIndex] = { ...q[questionIndex], flashcard, isGeneratingFlashcard: false };
         return { ...prev, [questionsCacheKey]: q };
       });
-      gamification.addToast('Flashcard criado com sucesso!', '⚡');
+      
+      // Add manual flashcard to global deck
+      if (pdfIdentifier) {
+          errorFlashcards.addManualFlashcard(question, flashcard, pdfIdentifier, fileName);
+      }
+      
+      gamification.addToast('Flashcard criado e adicionado ao deck!', '⚡');
     } catch (err) {
       console.error("Failed to generate flashcard", err);
       gamification.addToast(err instanceof Error ? `Falha: ${err.message}` : 'Falha ao gerar flashcard.', '❌');
@@ -1123,7 +1294,7 @@ const App: React.FC = () => {
         return { ...prev, [questionsCacheKey]: q };
       });
     }
-  }, [questionsCacheKey, questionsByPage, gamification.addToast]);
+  }, [questionsCacheKey, questionsByPage, gamification.addToast, errorFlashcards, pdfIdentifier, fileName]);
 
   const handleExplainPageClick = useCallback(async () => {
     if (!pdfDoc) return;
@@ -1446,6 +1617,34 @@ const App: React.FC = () => {
 
   const hasErrors = currentQuestions.length > 0 && currentQuestions.every(q => q.userAnswer) && currentQuestions.some(q => !isCorrectAnswer(q.userAnswer, q.correct_answer));
   
+  // Custom Error Review Handlers
+  const handleStartCustomReview = (config: CustomReviewConfig) => {
+      setIsCustomReviewSetupOpen(false);
+      setCustomReviewConfig(config);
+      // Open Flashcard Modal - it needs to handle custom config
+      setIsErrorFlashcardOpen(true);
+      gamification.addToast('Iniciando revisão personalizada!', '🚀');
+  };
+  
+  // Flashcard Modal Props derivation
+  const getFlashcardsForModal = () => {
+      if (customReviewConfig) {
+          return errorFlashcards.getCustomReviewDeck(customReviewConfig);
+      }
+      return errorFlashcards.getDueFlashcards();
+  };
+
+  const handleFlashcardReview = (cardId: string, rating: 'wrong' | 'hard' | 'easy') => {
+      const sync = customReviewConfig ? customReviewConfig.syncWithSRS : true;
+      errorFlashcards.processReview(cardId, rating, sync);
+  };
+  
+  const handleFlashcardModalClose = () => {
+      setIsErrorFlashcardOpen(false);
+      // Reset custom config when closing modal to return to standard SRS mode next time
+      setCustomReviewConfig(null);
+  };
+
   return (
     <div className="fixed inset-0 font-sans">
         <input type="file" accept="application/pdf" onChange={handleFileChange} className="hidden" ref={fileInputRef} />
@@ -1487,6 +1686,39 @@ const App: React.FC = () => {
             isOpen={isSessionStatsModalOpen}
             onClose={() => setIsSessionStatsModalOpen(false)}
             stats={selectedActivityStats}
+        />
+        <ChatWindow
+            isOpen={isChatOpen}
+            onClose={() => setIsChatOpen(false)}
+            getContextText={extractTextFromCurrentPage}
+        />
+        <ErrorFlashcardModal
+            isOpen={isErrorFlashcardOpen}
+            onClose={handleFlashcardModalClose}
+            dueCards={getFlashcardsForModal()}
+            onReview={handleFlashcardReview}
+            onDelete={errorFlashcards.removeFlashcard}
+        />
+        <FlashcardCalendarModal
+            isOpen={isFlashcardCalendarOpen}
+            onClose={() => setIsFlashcardCalendarOpen(false)}
+            flashcards={errorFlashcards.flashcards}
+            onDelete={errorFlashcards.removeFlashcard}
+        />
+        <CustomReviewSetupModal
+            isOpen={isCustomReviewSetupOpen}
+            onClose={() => setIsCustomReviewSetupOpen(false)}
+            onStart={handleStartCustomReview}
+            totalErrors={errorFlashcards.getStats().errors}
+        />
+        <SettingsModal 
+            isOpen={isSettingsModalOpen}
+            onClose={() => setIsSettingsModalOpen(false)}
+            onSync={handleSync}
+            isSyncing={isSyncing}
+            onLogin={handleLogin}
+            onLogout={handleLogout}
+            authState={authState}
         />
         
         {pdfDoc && (
@@ -1546,6 +1778,10 @@ const App: React.FC = () => {
               isOutlineOpen={isOutlineOpen}
               onToggleOutline={() => setIsOutlineOpen(!isOutlineOpen)}
               hasOutline={outline.length > 0}
+              
+              // Chat
+              onToggleChat={() => setIsChatOpen(!isChatOpen)}
+              isChatOpen={isChatOpen}
             />}
             
             <main ref={mainContainerRef} className="flex-grow flex flex-col overflow-hidden bg-black/20">
@@ -1560,6 +1796,13 @@ const App: React.FC = () => {
                       onCreateFolder={handleCreateFolder}
                       onDeleteFolder={handleDeleteFolder}
                       onMoveFile={handleMoveFile}
+                      onOpenErrorFlashcards={() => {
+                          setCustomReviewConfig(null);
+                          setIsErrorFlashcardOpen(true);
+                      }}
+                      onOpenCustomReview={() => setIsCustomReviewSetupOpen(true)}
+                      onOpenFlashcardCalendar={() => setIsFlashcardCalendarOpen(true)}
+                      flashcardStats={errorFlashcards.getStats()}
                   />
               ) : (
                 <div className="flex-grow flex overflow-hidden">
