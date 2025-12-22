@@ -1,10 +1,9 @@
-
-
 export enum BoardStyle {
   CEBRASPE = "Cebraspe",
   FGV = "FGV",
   INEP = "INEP",
   FUVEST = "FUVEST/USP",
+  FCC = "FCC",
 }
 
 export interface GeneratedQuestion {

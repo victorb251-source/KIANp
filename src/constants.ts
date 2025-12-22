@@ -3,15 +3,28 @@ import { BoardStyle, Level, Badge, BadgeRarity, ShopItem } from './types';
 export const BOARD_STYLES: BoardStyle[] = [
   BoardStyle.CEBRASPE,
   BoardStyle.FGV,
+  BoardStyle.FCC,
   BoardStyle.INEP,
   BoardStyle.FUVEST,
 ];
 
-// Short 'Success' Chime (Base64 MP3)
-export const CORRECT_ANSWER_SOUND_URL = 'data:audio/mp3;base64,//uQxAAAAANIAAAAAExBTUUzLjEwMKqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq//uQxAAAAANIAAAAAExBTUUzLjEwMKqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq//uQxAAAAANIAAAAAExBTUUzLjEwMKqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq//uQxAAAAANIAAAAAExBTUUzLjEwMKqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq//uQxAAAAANIAAAAAExBTUUzLjEwMKqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq';
+// Sound Identifiers for the Synthesizer
+export const CORRECT_ANSWER_SOUND_URL = 'success';
+export const INCORRECT_ANSWER_SOUND_URL = 'error';
+export const CLICK_SOUND_URL = 'click';
+export const FLIP_SOUND_URL = 'flip';
+export const REWARD_SOUND_URL = 'reward';
 
-// Short 'Error' Sound (Base64 MP3)
-export const INCORRECT_ANSWER_SOUND_URL = 'data:audio/mp3;base64,//uQxAAAAANIAAAAAExBTUUzLjEwMKqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq//uQxAAAAANIAAAAAExBTUUzLjEwMKqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq//uQxAAAAANIAAAAAExBTUUzLjEwMKqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq//uQxAAAAANIAAAAAExBTUUzLjEwMKqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq//uQxAAAAANIAAAAAExBTUUzLjEwMKqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq';
+// Keep the keys for compatibility, but values are now IDs
+export const SOUND_LIBRARY: Record<string, string> = {
+    click: 'click',
+    success: 'success',
+    error: 'error',
+    hard: 'hard',
+    flip: 'flip',
+    reward: 'reward',
+    delete: 'delete'
+};
 
 // --- GAMIFICATION CONSTANTS ---
 
@@ -290,7 +303,7 @@ Você é um tutor pedagógico experiente e empático. Sua especialidade é anali
 Analise o array de <incorrect_questions> fornecido. Cada objeto no array representa uma questão que o aluno errou. Ele contém o texto da questão, a resposta errada do aluno, a resposta correta e a justificativa baseada no texto original.
 
 Sua tarefa é gerar um feedback conciso e útil, seguindo estas etapas:
-1.  **Identificar o Padrão de Erro:** Analise todas as questões em conjunto. O erro se deve a uma interpretação incorreta de um termo específico? A uma falta de atenção a um detalhe? A um equívoco sobre um conceito central?
+1.  **Identificar o Padrão de Erro:** Analise todas as questões em conjunto. O erro se deve a uma interpretação incorreta de um termo específico? A uma falta de atenção a um detalhe? A um equívoco sobre um concept central?
 2.  **Diagnosticar o Conceito-Chave:** Para cada erro (ou para o padrão de erros), identifique o conceito-chave que o aluno não dominou. Seja específico. Por exemplo, em vez de dizer "erro de direito administrativo", diga "equívoco sobre a diferença entre ato vinculado e ato discricionário".
 3.  **Fornecer Sugestões Claras e Acionáveis:** Com base no diagnóstico, forneça sugestões de estudo. As sugestões devem ser práticas. Por exemplo:
     - "Para solidificar o conceito de X, tente criar um mapa mental que conecte X a Y e Z."
@@ -427,5 +440,18 @@ export const BOARD_STYLE_INSTRUCTIONS_MAP: Record<BoardStyle, string> = {
 2.  **Interdisciplinaridade Acadêmica:** Crie questões que conectem conceitos de diferentes disciplinas de forma significativa (ex: História com Sociologia, Biologia com Química, Literatura com Filosofia).
 3.  **Temas Abstratos e Filosóficos:** Não hesite em abordar temas mais abstratos ou que exijam uma argumentação complexa para ser resolvidos. A questão deve ter um elevado rigor acadêmico.
 4.  **Rigor Interpretativo:** Use textos, gráficos e charges que exijam um alto nível de interpretação, combinando a dificuldade interpretativa com uma carga de conteúdo pesada.
+**Saída:** A chave 'correct_answer' deve ser a letra da alternativa correta (A, B, C, D ou E).`,
+  [BoardStyle.FCC]: `**Filosofia Central:** Especialista em Elaboração de Questões Estilo FCC (Fundação Carlos Chagas). Mimetize com precisão o estilo, o rigor e a estrutura da "Nova" FCC.
+**Formato:** Múltipla Escolha (A-E).
+**Diretrizes de Conteúdo:**
+1. **Língua Portuguesa:** Foco em sintaxe do período, concordância verbal/nominal complexa, regência e, principalmente, reescrita de frases. As alternativas devem ser longas e sutilmente diferentes entre si, exigindo a identificação da manutenção do sentido e correção gramatical.
+2. **Direito/Legislação:** Combine a literalidade da lei (Lei Seca) com jurisprudência consolidada (Súmulas do STF e STJ). Use enunciados que descrevam uma situação hipotética (ex: "Tício, servidor público...") para que o candidato aplique a norma técnica ou legal.
+3. **Conhecimentos Técnicos (Medicina/Perícia/Superior):** Utilize casos clínicos, situações-problema ou descrições de vestígios forenses. A questão deve exigir o diagnóstico correto ou a classificação técnica precisa com base na norma técnica.
+**Técnicas de Elaboração:**
+- **Literalidade Inteligente:** Não basta a memorização do artigo; a questão deve exigir a aplicação do conceito em uma situação narrada.
+- **Pegadinhas de Precisão:** Troque termos técnicos por sinônimos que alteram levemente o sentido jurídico ou científico.
+- **Extensão Uniforme:** As alternativas devem ter extensões similares para evitar eliminação por tamanho.
+- **Enunciado:** Objetivo, mas contextualizado.
+**Tom de Voz:** Formal, técnico, jurídico e acadêmico.
 **Saída:** A chave 'correct_answer' deve ser a letra da alternativa correta (A, B, C, D ou E).`,
 };
